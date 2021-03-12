@@ -4,7 +4,9 @@ import (
 	"context"
 
 	"github.com/ovh/cds/engine/worker/internal"
+	"github.com/ovh/cds/sdk/log/hook"
 	"github.com/rockbears/log"
+	"github.com/sirupsen/logrus"
 
 	"github.com/spf13/cobra"
 )
@@ -23,7 +25,18 @@ func cmdRegister() *cobra.Command {
 func cmdRegisterRun() func(cmd *cobra.Command, args []string) {
 	return func(cmd *cobra.Command, args []string) {
 		var w = new(internal.CurrentWorker)
+
 		initFromFlags(cmd, w)
+		defer func() {
+			for _, hs := range logrus.StandardLogger().Hooks {
+				for _, h := range hs {
+					if graylogHook, ok := h.(*hook.Hook); ok {
+						log.Info(context.Background(), "Draining logs...")
+						graylogHook.Flush()
+					}
+				}
+			}
+		}()
 
 		if err := w.Register(context.Background()); err != nil {
 			log.Error(context.TODO(), "Unable to register worker %v", err)
